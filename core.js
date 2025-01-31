@@ -32,10 +32,28 @@
         return;
     }
 
+    const getSession = new Promise(resolve => {
+        let session = getCookie(SESSION_KEY);
+        if (session) {
+            console.log("existing session")
+            resolve(session);
+        } else {
+            fetch("https://maniac-functions.vercel.app/api/session", {
+                method: "POST",
+                body: JSON.stringify({customer_id: customerId})
+            }).then(response => response.json())
+                .then(r => {
+                    //setCookie(SESSION_KEY, r, SESSION_TIMEOUT)
+                    resolve(r);
+                })
+        }
+    });
+
+
     // Synchronize data fetch and DOM readiness
-    Promise.all([waitForDom])
-        .then(() => {
-            console.log("READY")
+    Promise.all([getSession,waitForDom])
+        .then(([session]) => {
+            console.log(session);
             document.body.style.opacity = '1';
             // startTracking(customerId, sessionId, session.ids);
         })
