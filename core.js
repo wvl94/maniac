@@ -263,7 +263,7 @@
             }
             // Reveal the body
             applyStyles('.hide-maniac', 'opacity: 1 !important;');
-            startTracking(customerId, sessionId, session.ids);
+            //startTracking(customerId, sessionId, session.ids);
             console.log("Done.")
         })
         .catch(err => {
