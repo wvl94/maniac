@@ -8,7 +8,7 @@
     let debugMode = parseInt(urlParams2.get('debug_mode') || 0);
 
     setTimeout(() => {
-        applyStyles('.hide-maniac', 'opacity: 1 !important;');
+        // applyStyles('.hide-maniac', 'opacity: 1 !important;');
     }, 1000);
 
     const botRegex = new RegExp(
@@ -42,7 +42,7 @@
         const filtered = Array.from(elements).filter(heading => {
             // Check if all child nodes are either text or <br> elements
             return Array.from(heading.childNodes).every(node =>
-                node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR")
+                node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && (node.tagName === "BR" || node.tagName === "SPAN"))
             );
         });
 
@@ -157,11 +157,12 @@
                     // Change the text content
                     element.innerHTML = newText;
                     log(`Text changed in element:`, element);
-                    return; // Stop after the first match
+                    return true; // Stop after the first match
                 }
             }
         }
         console.warn(`No element found with the text: "${textToFind}"`);
+        return false;
     }
 
     function checkFlickerId(experiment) {
@@ -174,18 +175,20 @@
 
 
     function handleTextBandit(experiment) {
-        log(experiment);
+        let matched = false;
+        let result = false;
         for (let index = 0; index < experiment.bandit.content.source.length; ++index) {
-            log(experiment.bandit.content.source[index]);
-            log(experiment.arm.subs[index]);
-            changeElementTextByContent(experiment.bandit.content.source[index].k, experiment.arm.subs[index].v);
+            result = changeElementTextByContent(experiment.bandit.content.source[index].k, experiment.arm.subs[index].v);
+            matched = matched || result;
         }
+        return matched;
 
     }
 
     function handleSectionBandit(experiment) {
         const main = document.querySelectorAll('main')[0];
-        experiment.arm.sections.forEach(sectionLocation => {
+        log(experiment.arm.sections)
+        for (let sectionLocation of experiment.arm.sections) {
             let sections = document.querySelectorAll('section');
             for (let section of sections) {
                 if (section.id.includes(sectionLocation.id)) {
@@ -196,9 +199,12 @@
                         // If the target index is out of bounds, append the section at the end
                         main.appendChild(section);
                     }
+                    return true
                 }
+
             }
-        })
+        }
+        return false;
 
     }
 
@@ -218,23 +224,36 @@
     }
 
     function handleExperiment(experiment) {
-        log("Handle experiment.")
-        log(experiment)
         if (!experiment.arm) {
             log("baseline experiment.")
-            return
+            return true
         }
 
         try {
             if (experiment.bandit.type === 'SECTIONS') {
-                handleSectionBandit(experiment)
+                return handleSectionBandit(experiment)
             }
             if (experiment.bandit.type === 'TEXT') {
-                handleTextBandit(experiment)
+                return handleTextBandit(experiment)
             }
         } catch (err) {
             console.log(err)
+            return false;
         }
+    }
+
+    function runExperiments(experiments) {
+        experiments = experiments.map(v => ({...v, done: false}))
+        const observer = new MutationObserver(() => {
+            experiments = experiments.filter(exp => !exp.done).map(v => ({...v, done: handleExperiment(v)}))
+            console.log(experiments.filter(exp => !exp.done).length)
+            if (experiments.filter(exp => !exp.done).length === 0) {
+                log("Done with all experiments.")
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.documentElement, {childList: true, subtree: true});
+        experiments = experiments.filter(exp => !exp.done).map(v => ({...v, done: handleExperiment(v)}))
     }
 
     // Synchronize data fetch and DOM readiness
@@ -245,25 +264,14 @@
                 applyStyles('.hide-maniac', 'opacity: 1 !important;');
                 return
             }
+            applyStyles('.hide-maniac', 'opacity: 1 !important;');
+
             log(session);
             sessionId = session.session_id
             session.data = session.data.filter(exp => exp.bandit.page === window.location.pathname)
             log(`Filtered ${session.data.length} experiment(s) for page ${window.location.pathname}`)
-
-            const blockingSessions = session.data.filter(exp => exp.bandit.content.flicker_id)
-
-            log(`Waiting for ${blockingSessions.length} blocking experiments`)
-            blockingSessions.forEach(experiment => handleBlockingExperiment(experiment));
-            if (document.readyState === 'complete') {
-                session.data.forEach(experiment => handleExperiment(experiment));
-            } else {
-                document.addEventListener("DOMContentLoaded", () => {
-                    session.data.forEach(experiment => handleExperiment(experiment));
-                });
-            }
-            // Reveal the body
-            applyStyles('.hide-maniac', 'opacity: 1 !important;');
-            //startTracking(customerId, sessionId, session.ids);
+            runExperiments(session.data)
+            startTracking(customerId, sessionId, session.ids, debugMode);
             console.log("Done.")
         })
         .catch(err => {
@@ -273,7 +281,7 @@
 
 })();
 
-function startTracking(customerId, sessionId, Ids) {
+function startTracking(customerId, sessionId, Ids, debugMode) {
     const EVENTS = []; // Local array to store events
     const API_ENDPOINT = "https://maniac-functions.vercel.app/api/track"; // Replace with your API endpoint
 
@@ -290,9 +298,43 @@ function startTracking(customerId, sessionId, Ids) {
 
     trackEvent("page_view", {page_url: window.location.pathname});
 
+    document.addEventListener("DOMContentLoaded", function () {
+        // Select all forms with the action '/cart/add'
+        const forms = document.querySelectorAll('form[action="/cart/add"]');
+        const pageUrl = window.location.pathname;
+
+        // Loop through each form
+        forms.forEach(function (form) {
+            // Select the Add to Cart button within the form
+            const addToCartButton = form.querySelector('button[type="submit"], input[type="submit"]');
+
+            if (addToCartButton) {
+                addToCartButton.addEventListener("click", function (event) {
+                    // Prevent the default action just for our custom tracking (but don't stop form submission)
+                    //event.preventDefault();
+
+                    // Capture form data (product ID and quantity)
+                    let formData = new FormData(form);
+                    let productId = formData.get("id");
+                    let quantity = formData.get("quantity") || 1;
+
+
+                    // Attempt to find price (Modify selector based on your theme)
+                    let priceElement = document.querySelector('.price, [data-price]');
+                    let price = priceElement ? parseInt(priceElement.innerText.replace(/[^0-9]/g, '')) : -1;
+
+
+                    trackEvent("add_to_cart", {product_id: productId, quantity, price, page_url: pageUrl});
+
+                    // Manually submit the form (so the cart behavior is not interrupted)
+                    //form.submit();
+                });
+            }
+        });
+    });
+
     // Listen for clicks
     document.addEventListener("click", (e) => {
-        e.preventDefault(); // Stop the default navigation
         const {pageX: x, pageY: y, target} = e;
 
         const clickableElement = target.closest("button, a") || target;
@@ -310,11 +352,7 @@ function startTracking(customerId, sessionId, Ids) {
 
         trackEvent("click", {x, y, target: targetDetails, page_url: pageUrl, details: elementDetails});
         // Send the tracking data immediately
-        sendData().then(() => {
-            // After sending data, navigate to the link
-            if (href)
-                window.location.href = href;
-        });
+        sendData().then();
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -343,6 +381,9 @@ function startTracking(customerId, sessionId, Ids) {
     });
 
     const sendData = async () => {
+        if (debugMode) {
+            return
+        }
         if (window.sessionEvents_) {
             window.sessionEvents_.forEach(event => {
                 EVENTS.push({
@@ -357,22 +398,13 @@ function startTracking(customerId, sessionId, Ids) {
         if (EVENTS.length > 0) {
             try {
                 // Send batch data to the backend
-                const response = await fetch(API_ENDPOINT, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        events: EVENTS, session_id: sessionId,
-                        customer_id: customerId,
-                        ids: Ids,
-                        agent: window.navigator.userAgent,
-                    }),
+                const analytics = JSON.stringify({
+                    events: EVENTS, session_id: sessionId,
+                    customer_id: customerId,
+                    ids: Ids,
+                    agent: window.navigator.userAgent,
                 });
-
-                if (!response.ok) {
-                    console.error("Failed to send tracking data", await response.text());
-                } else {
-                    console.log("Tracking data sent successfully");
-                }
+                navigator.sendBeacon(API_ENDPOINT, analytics);
 
                 // Clear the events array after successful transmission
                 EVENTS.length = 0;
