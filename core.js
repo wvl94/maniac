@@ -1,5 +1,5 @@
 (function () {
-    const SESSION_KEY = 'maniac_session';
+    let SESSION_KEY = 'maniac_session';
     const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
     console.log("Initializing AB test script...")
 
@@ -116,6 +116,7 @@
     const scriptUrl = document.currentScript.src;
     const urlParams = new URLSearchParams(new URL(scriptUrl).search);
     const customerId = parseInt(urlParams.get("customer_id"));
+    SESSION_KEY += `_${urlParams.get("customer_id")}`;
     let sessionId = null;
 
     if (!customerId) {
