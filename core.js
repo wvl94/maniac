@@ -153,7 +153,7 @@
         const elements = document.querySelectorAll('*');
         for (const element of elements) {
             if (element.children.length < 2) {
-                if (element.innerHTML.trim() === textToFind) {
+                if (element.innerHTML.trim().toLowerCase() === textToFind.toLowerCase()) {
                     // Change the text content
                     element.innerHTML = newText;
                     log(`Text changed in element:`, element);
