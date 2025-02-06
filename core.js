@@ -265,13 +265,13 @@
                 applyStyles('.hide-maniac', 'opacity: 1 !important;');
                 return
             }
-            applyStyles('.hide-maniac', 'opacity: 1 !important;');
-
             log(session);
             sessionId = session.session_id
             session.data = session.data.filter(exp => exp.bandit.page === window.location.pathname)
             log(`Filtered ${session.data.length} experiment(s) for page ${window.location.pathname}`)
-            runExperiments(session.data)
+            if (session.data)
+                runExperiments(session.data)
+            applyStyles('.hide-maniac', 'opacity: 1 !important;');
             startTracking(customerId, sessionId, session.ids, debugMode);
             console.log("Done.")
         })
@@ -334,14 +334,15 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
         });
 
 
-        const wixAddToCart = document.querySelectorAll('button[data-hook="add-to-cart"], button[data-hook="buy-now-button"]');
-        if (wixAddToCart){
+        const wixAddToCart = document.querySelectorAll('button[data-hook*="add-to-cart"], button[data-hook*="buy-now-button"]');
+        if (wixAddToCart) {
             console.log("Detected WIX add to cart buttons")
+            wixAddToCart.forEach(addToCartButton =>
+                addToCartButton.addEventListener("click", function (event) {
+                    trackEvent("add_to_cart", {page_url: pageUrl});
+                }))
         }
-        wixAddToCart.forEach(addToCartButton =>
-            addToCartButton.addEventListener("click", function (event) {
-                trackEvent("add_to_cart", {page_url: pageUrl});
-            }))
+
 
     });
 
