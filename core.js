@@ -35,6 +35,7 @@
     }
 
     function removeStyle(style){
+        console.log("Removing style.")
         const head = document.getElementsByTagName("head")[0];
         head.removeChild(style);
     }
