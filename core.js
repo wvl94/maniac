@@ -31,9 +31,15 @@
         if (head) {
             head.appendChild(styleElement);
         }
+        return styleElement;
     }
 
-    applyStyles('.hide-maniac', 'opacity: 0;');
+    function removeStyle(style){
+        const head = document.getElementsByTagName("head")[0];
+        head.removeChild(style);
+    }
+
+    let hidingStyle = applyStyles('.hide-maniac', 'opacity: 0;');
     const observer = new MutationObserver(() => {
 
 
@@ -263,7 +269,7 @@
             if (!session || !session.customer.enabled) {
                 log(session);
                 log("Stopping AB test script.");
-                applyStyles('.hide-maniac', 'opacity: 1 !important;');
+                removeStyle(hidingStyle)
                 return
             }
             log(session);
@@ -272,13 +278,13 @@
             log(`Filtered ${session.data.length} experiment(s) for page ${window.location.pathname}`)
             if (session.data)
                 runExperiments(session.data)
-            applyStyles('.hide-maniac', 'opacity: 1 !important;');
+            removeStyle(hidingStyle)
             startTracking(customerId, sessionId, session.ids, debugMode);
             console.log("Done.")
         })
         .catch(err => {
             console.error('Error in script execution:', err);
-            applyStyles('.hide-maniac', 'opacity: 1 !important;');
+            removeStyle(hidingStyle)
         });
 
 })();
