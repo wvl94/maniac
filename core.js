@@ -261,6 +261,7 @@
     Promise.all([getSession])
         .then(([session]) => {
             if (!session || !session.customer.enabled) {
+                log(session);
                 log("Stopping AB test script.");
                 applyStyles('.hide-maniac', 'opacity: 1 !important;');
                 return
