@@ -332,6 +332,17 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
                 });
             }
         });
+
+
+        const wixAddToCart = document.querySelectorAll('button[data-hook="add-to-cart"], button[data-hook="buy-now-button"]');
+        if (wixAddToCart){
+            console.log("Detected WIX add to cart buttons")
+        }
+        wixAddToCart.forEach(addToCartButton =>
+            addToCartButton.addEventListener("click", function (event) {
+                trackEvent("add_to_cart", {page_url: pageUrl});
+            }))
+
     });
 
     // Listen for clicks
