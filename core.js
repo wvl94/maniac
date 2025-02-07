@@ -7,6 +7,12 @@
     const urlParams2 = new URLSearchParams(queryString);
     let debugMode = parseInt(urlParams2.get('debug_mode') || 0);
 
+    let currentPage = window.location.pathname;
+
+    // If navigating to the same page, don't re-run
+    if (document._ABCurrentPage === currentPage) return;
+    document._ABCurrentPage = currentPage;
+
     setTimeout(() => {
         // applyStyles('.hide-maniac', 'opacity: 1 !important;');
     }, 1000);
@@ -379,7 +385,7 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
         }
     }
 
-    function clickListener(event) {
+    function clickListener(e) {
         const {pageX: x, pageY: y, target} = e;
 
         const clickableElement = target.closest("button, a") || target;
@@ -401,7 +407,7 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
     }
 
 
-    function scrollListener(event) {
+    function scrollListener(e) {
         if (scrollTimeout) {
             clearTimeout(scrollTimeout);
         }
@@ -439,6 +445,9 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
     document.ab_listeners = []
 
     document.addEventListener("DOMContentLoaded", addToCartListener);
+    if(document.readyState === "complete") {
+        addToCartListener(null)
+    }
 
     window.removeEventListener("beforeunload", sendData);
     window.addEventListener("beforeunload", sendData);
