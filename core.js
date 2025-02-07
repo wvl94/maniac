@@ -11,10 +11,7 @@
         // applyStyles('.hide-maniac', 'opacity: 1 !important;');
     }, 1000);
 
-    const botRegex = new RegExp(
-        " daum[ /]| deusu/| yadirectfetcher|(?:^|[^g])news(?!sapphire)|" +
-        "google(?!(app|/google| pixel))|bot|spider|crawl|http|lighthouse|screenshot", "i"
-    );
+    const botRegex = new RegExp(" daum[ /]| deusu/| yadirectfetcher|(?:^|[^g])news(?!sapphire)|" + "google(?!(app|/google| pixel))|bot|spider|crawl|http|lighthouse|screenshot", "i");
 
     const simpleBotRegex = /bot|spider|crawl|http|lighthouse|screenshot/i;
     let compiledRegex;
@@ -34,7 +31,7 @@
         return styleElement;
     }
 
-    function removeStyle(style){
+    function removeStyle(style) {
         console.log("Removing style.")
         const head = document.getElementsByTagName("head")[0];
         head.removeChild(style);
@@ -48,9 +45,7 @@
 
         const filtered = Array.from(elements).filter(heading => {
             // Check if all child nodes are either text or <br> elements
-            return Array.from(heading.childNodes).every(node =>
-                node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && (node.tagName === "BR" || node.tagName === "SPAN"))
-            );
+            return Array.from(heading.childNodes).every(node => node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && (node.tagName === "BR" || node.tagName === "SPAN")));
         });
 
         for (let element of filtered) {
@@ -142,8 +137,7 @@
             resolve(session);
         } else {
             fetch("https://maniac-functions.vercel.app/api/session", {
-                method: "POST",
-                body: JSON.stringify({customer_id: customerId})
+                method: "POST", body: JSON.stringify({customer_id: customerId})
             }).then(response => response.json())
                 .then(r => {
                     setCookie(SESSION_KEY, r, SESSION_TIMEOUT);
@@ -277,8 +271,7 @@
             sessionId = session.session_id
             session.data = session.data.filter(exp => exp.bandit.page === window.location.pathname)
             log(`Filtered ${session.data.length} experiment(s) for page ${window.location.pathname}`)
-            if (session.data)
-                runExperiments(session.data)
+            if (session.data) runExperiments(session.data)
             removeStyle(hidingStyle)
             startTracking(customerId, sessionId, session.ids, debugMode);
             console.log("Done.")
@@ -298,16 +291,59 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
     function trackEvent(eventType, eventData) {
         console.log(eventType, eventData);
         EVENTS.push({
-            session_id: sessionId,
-            event_type: eventType,
-            event_data: eventData,
-            timestamp: new Date().toISOString(),
+            session_id: sessionId, event_type: eventType, event_data: eventData, timestamp: new Date().toISOString(),
         });
     }
 
+    const sendData = async () => {
+        if (debugMode) {
+            return
+        }
+        if (window.sessionEvents_) {
+            window.sessionEvents_.forEach(event => {
+                EVENTS.push({
+                    session_id: sessionId, event_type: event[0], event_data: {}, timestamp: event[1].toISOString(),
+                });
+            })
+            window.sessionEvents_ = [];
+        }
+        if (EVENTS.length > 0) {
+            try {
+                // Send batch data to the backend
+                const analytics = JSON.stringify({
+                    events: EVENTS,
+                    session_id: sessionId,
+                    customer_id: customerId,
+                    ids: Ids,
+                    agent: window.navigator.userAgent,
+                });
+                navigator.sendBeacon(API_ENDPOINT, analytics);
+
+                // Clear the events array after successful transmission
+                EVENTS.length = 0;
+            } catch (err) {
+                console.error("Error sending tracking data:", err);
+                EVENTS.length = 0;
+            }
+        }
+    }
+
+    // Periodically send data
+    setInterval(sendData, 3000); // Send data every 3 seconds
+
     trackEvent("page_view", {page_url: window.location.pathname});
 
-    document.addEventListener("DOMContentLoaded", function () {
+    if (window.hasTrackingScript) {
+        console.log("Already tracking in this window.")
+        sendData().then();
+        return
+    }
+
+    window.hasTrackingScript = true;
+    let scrollTimeout = null;
+
+
+    function addToCartListener(event) {
         // Select all forms with the action '/cart/add'
         const forms = document.querySelectorAll('form[action="/cart/add"]');
         const pageUrl = window.location.pathname;
@@ -341,21 +377,16 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
             }
         });
 
-
         const wixAddToCart = document.querySelectorAll('button[data-hook*="add-to-cart"], button[data-hook*="buy-now-button"]');
         if (wixAddToCart) {
             console.log("Detected WIX add to cart buttons")
-            wixAddToCart.forEach(addToCartButton =>
-                addToCartButton.addEventListener("click", function (event) {
-                    trackEvent("add_to_cart", {page_url: pageUrl});
-                }))
+            wixAddToCart.forEach(addToCartButton => addToCartButton.addEventListener("click", function (event) {
+                trackEvent("add_to_cart", {page_url: pageUrl});
+            }))
         }
+    }
 
-
-    });
-
-    // Listen for clicks
-    document.addEventListener("click", (e) => {
+    function clickListener(event) {
         const {pageX: x, pageY: y, target} = e;
 
         const clickableElement = target.closest("button, a") || target;
@@ -374,19 +405,10 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
         trackEvent("click", {x, y, target: targetDetails, page_url: pageUrl, details: elementDetails});
         // Send the tracking data immediately
         sendData().then();
-    });
+    }
 
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            console.log('User is idle or has left the tab.');
-        } else {
-            console.log('User has returned to the tab.');
-        }
-    });
 
-    // Listen for scrolls (debounced)
-    let scrollTimeout = null;
-    document.addEventListener("scroll", () => {
+    function scrollListener(event) {
         if (scrollTimeout) {
             clearTimeout(scrollTimeout);
         }
@@ -399,44 +421,18 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
 
             trackEvent("scroll", {scroll_depth: scrollDepth, scroll_percentage: scrollPercentage, page_url: pageUrl});
         }, 200); // Trigger event logging 200ms after user stops scrolling
-    });
 
-    const sendData = async () => {
-        if (debugMode) {
-            return
-        }
-        if (window.sessionEvents_) {
-            window.sessionEvents_.forEach(event => {
-                EVENTS.push({
-                    session_id: sessionId,
-                    event_type: event[0],
-                    event_data: {},
-                    timestamp: event[1].toISOString(),
-                });
-            })
-            window.sessionEvents_ = [];
-        }
-        if (EVENTS.length > 0) {
-            try {
-                // Send batch data to the backend
-                const analytics = JSON.stringify({
-                    events: EVENTS, session_id: sessionId,
-                    customer_id: customerId,
-                    ids: Ids,
-                    agent: window.navigator.userAgent,
-                });
-                navigator.sendBeacon(API_ENDPOINT, analytics);
-
-                // Clear the events array after successful transmission
-                EVENTS.length = 0;
-            } catch (err) {
-                console.error("Error sending tracking data:", err);
-                EVENTS.length = 0;
-            }
-        }
     }
-    sendData().then();
-    // Periodically send data
-    setInterval(sendData, 3000); // Send data every 2 seconds
+
+    document.addEventListener("DOMContentLoaded", addToCartListener);
+
+    document.removeEventListener("click", clickListener)
+    document.addEventListener("click", clickListener);
+
+    document.removeEventListener("scroll", scrollListener);
+    document.addEventListener("scroll", scrollListener);
+
+    window.removeEventListener("beforeunload", sendData);
     window.addEventListener("beforeunload", sendData);
+
 }
