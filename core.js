@@ -333,13 +333,6 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
 
     trackEvent("page_view", {page_url: window.location.pathname});
 
-    if (window.hasTrackingScript) {
-        console.log("Already tracking in this window.")
-        sendData().then();
-        return
-    }
-
-    window.hasTrackingScript = true;
     let scrollTimeout = null;
 
 
@@ -424,15 +417,20 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
 
     }
 
+    document.ab_listeners = []
+
     document.addEventListener("DOMContentLoaded", addToCartListener);
 
     document.removeEventListener("click", clickListener)
     document.addEventListener("click", clickListener);
+    document.ab_listeners.push(clickListener)
 
     document.removeEventListener("scroll", scrollListener);
     document.addEventListener("scroll", scrollListener);
+    document.ab_listeners.push(scrollListener)
 
     window.removeEventListener("beforeunload", sendData);
     window.addEventListener("beforeunload", sendData);
+    document.ab_listeners.push(sendData)
 
 }
