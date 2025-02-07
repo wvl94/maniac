@@ -433,4 +433,5 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
     window.addEventListener("beforeunload", sendData);
     document.ab_listeners.push(sendData)
 
+
 }
