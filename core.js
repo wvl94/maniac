@@ -290,9 +290,13 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
     // Helper function to track events
     function trackEvent(eventType, eventData) {
         console.log(eventType, eventData);
-        EVENTS.push({
+        const event = {
             session_id: sessionId, event_type: eventType, event_data: eventData, timestamp: new Date().toISOString(),
-        });
+        }
+        if (EVENTS.length > 0 && EVENTS[-1] === event ){
+            console.log("Detected duplicate event.")
+        }
+        EVENTS.push(event);
     }
 
     const sendData = async () => {
@@ -328,10 +332,6 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
         }
     }
 
-    // Periodically send data
-    setInterval(sendData, 3000); // Send data every 3 seconds
-
-    trackEvent("page_view", {page_url: window.location.pathname});
 
     let scrollTimeout = null;
 
@@ -417,17 +417,28 @@ function startTracking(customerId, sessionId, Ids, debugMode) {
 
     }
 
+    console.log(document.ab_listeners)
+
+    if (document._IS_TRACKING){
+
+
+    }
+    else{
+        document._IS_TRACKING = true
+        document.ab_listeners = []
+        document.addEventListener("click", clickListener);
+        document.addEventListener("scroll", scrollListener);
+        document.ab_listeners.push(scrollListener)
+        document.ab_listeners.push(clickListener)
+    }
+
+    setInterval(sendData, 3000); // Send data every 3 seconds
+
+    trackEvent("page_view", {page_url: window.location.pathname});
+
     document.ab_listeners = []
 
     document.addEventListener("DOMContentLoaded", addToCartListener);
-
-    document.removeEventListener("click", clickListener)
-    document.addEventListener("click", clickListener);
-    document.ab_listeners.push(clickListener)
-
-    document.removeEventListener("scroll", scrollListener);
-    document.addEventListener("scroll", scrollListener);
-    document.ab_listeners.push(scrollListener)
 
     window.removeEventListener("beforeunload", sendData);
     window.addEventListener("beforeunload", sendData);
